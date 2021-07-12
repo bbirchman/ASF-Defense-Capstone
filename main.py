@@ -1,5 +1,4 @@
 import argparse
-from contextlib import nullcontext
 import json
 import datetime
 import os
@@ -179,6 +178,7 @@ if __name__ == '__main__':
                                                       target_model=helper.target_model,
                                                       epoch_interval=helper.params['aggr_epoch_interval'])
             num_oracle_calls = 1
+
         elif helper.params['aggregation_methods'] == config.AGGR_GEO_MED:
             maxiter = helper.params['geom_median_maxiter']
             num_oracle_calls, is_updated, names, weights, alphas = helper.geometric_median_update(helper.target_model, updates, maxiter=maxiter)
@@ -191,22 +191,11 @@ if __name__ == '__main__':
             vis_fg_alpha(helper,names,alphas,epoch,vis,adversarial_name_keys )
             num_oracle_calls = 1
 
-        #BEN'S ADDITION
-        #-------------------------------------------------------------------#
-        elif helper.params['aggregation_methods'] == config.AGGR_GAN:
-            num_oracle_calls = None # value needs to be set
-            is_updated, names, weights, alphas = helper.gan_update(helper.target_model, updates)
-            vis_agg_weight(helper,names,weights,epoch,vis,adversarial_name_keys)
-            vis_fg_alpha(helper,names,weights,epoch,vis,adversarial_name_keys)
-
-        elif helper.params['aggregation_methods'] == config.AGGR_KRUM:
-            is_updated = helper.krum_update(target_model=helper.target_model)
-            
-        #-------------------------------------------------------------------#
-
         # clear the weight_accumulator
         weight_accumulator = helper.init_weight_accumulator(helper.target_model)
+
         temp_global_epoch = epoch + helper.params['aggr_epoch_interval'] - 1
+
         epoch_loss, epoch_acc, epoch_corret, epoch_total = test.Mytest(helper=helper, epoch=temp_global_epoch,
                                                                        model=helper.target_model, is_poison=False,
                                                                        visualize=True, agent_name_key="global")

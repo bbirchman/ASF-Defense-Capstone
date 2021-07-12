@@ -9,8 +9,6 @@ import sklearn.metrics.pairwise as smp
 from torch.nn.functional import log_softmax
 import torch.nn.functional as F
 import time
-import torch.nn as nn
-
 
 logger = logging.getLogger("logger")
 import os
@@ -19,18 +17,6 @@ import numpy as np
 import config
 import copy
 import utils.csv_record
-
-#Ben's imports
-from torch.autograd import Variable
-import torch.optim as optim
-import torch
-import argparse
-#import gan_helper
-#from gan_helper import Generator
-#from gan_helper import Discriminator
-import main
-
-
 
 class Helper:
     def __init__(self, current_time, params, name):
@@ -61,9 +47,6 @@ class Helper:
         self.params['current_time'] = self.current_time
         self.params['folder_path'] = self.folder_path
         self.fg= FoolsGold(use_memory=self.params['fg_use_memory'])
-
-        #BEN'S CODE
-        self.gan= GAN(use_memory=self.params['fg_use_memory'])
 
     def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
         if not self.params['save_model']:
@@ -214,10 +197,7 @@ class Helper:
                  number of training samples corresponding to the update, and update
                  is a list of variable weights
          """
-
-        #BEN'S NOTES
-        #May need to add GAN here depending on how GAN weights need to be accumulated
-        if self.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or self.params['aggregation_methods'] == config.AGGR_GAN:
+        if self.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
             updates = dict()
             for i in range(0, len(state_keys)):
                 local_model_gradients = epochs_submit_update_dict[state_keys[i]][0] # agg 1 interval
@@ -275,84 +255,6 @@ class Helper:
 
             data.add_(update_per_layer)
         return True
-    
-    #BEN'S ADDITION
-    #-------------------------------------------------------------------#
-    
-    def krum_update(self, input):
-
-        '''
-        compute krum or multi-krum of input. O(dn^2)
-        
-        input : batchsize * vector dimension * n
-        
-        return 
-            krum : batchsize* vector dimension * 1
-            mkrum : batchsize* vector dimension * 1
-        '''
-        #batch size should be 64, vector dimension is ???, n is ???
-
-        #What is n?
-        n = input.shape[-1]
-
-        #f = n // 2  # worse case 50% malicious points
-        f = 1 #foolsgold paper states f=1 to not interfere with foolsgold
-        k = n - f - 2
-
-        # collection distance, distance from points to points
-        x = input.permute(0, 2, 1)
-        cdist = torch.cdist(x, x, p=2)
-        # find the k+1 nbh of each point
-        nbhDist, nbh = torch.topk(cdist, k + 1, largest=False)
-        # the point closest to its nbh
-        i_star = torch.argmin(nbhDist.sum(2))
-        # krum
-        krum = input[:, :, [i_star]]
-        # Multi-Krum
-        mkrum = input[:, :, nbh[:, i_star, :].view(-1)].mean(2, keepdims=True)
-        #return krum, mkrum
-
-        return True
-
-    def gan_update(self,target_model,updates):
-        client_grads = []
-        alphas = []
-        names = []
-        for name, data in updates.items():
-            client_grads.append(data[1])  # gradient
-            alphas.append(data[0])  # num_samples
-            names.append(name)
-
-        adver_ratio = 0
-        for i in range(0, len(names)):
-            _name = names[i]
-            if _name in self.params['adversary_list']:
-                adver_ratio += alphas[i]
-        adver_ratio = adver_ratio / sum(alphas)
-        poison_fraction = adver_ratio * self.params['poisoning_per_batch'] / self.params['batch_size']
-        logger.info(f'[GAN agg] training data poison_ratio: {adver_ratio}  data num: {alphas}')
-        logger.info(f'[GAN agg] considering poison per batch poison_fraction: {poison_fraction}')
-
-        target_model.train()
-        # train and update
-        optimizer = torch.optim.SGD(target_model.parameters(), lr=self.params['lr'],
-                                    momentum=self.params['momentum'],
-                                    weight_decay=self.params['decay'])
-
-        optimizer.zero_grad()
-        agg_grads, wv,alpha = self.gan.aggregate_gradients(client_grads,names)
-        for i, (name, params) in enumerate(target_model.named_parameters()):
-            agg_grads[i]=agg_grads[i] * self.params["eta"]
-            if params.requires_grad:
-                params.grad = agg_grads[i].to(config.device)
-        optimizer.step()
-        wv=wv.tolist()
-        utils.csv_record.add_weight_result(names, wv, alpha)
-        return True, names, wv, alpha
-
-    
-
-    #-------------------------------------------------------------------#
 
     def foolsgold_update(self,target_model,updates):
         client_grads = []
@@ -390,7 +292,7 @@ class Helper:
         utils.csv_record.add_weight_result(names, wv, alpha)
         return True, names, wv, alpha
 
-    def geometric_median_update(self, target_model, updates, maxiter=4, eps=1e-5, verbose=False, ftol=1e-6, max_update_norm= None):
+    def geometric_median_update(self, target_model, updates, maxiter=4, eps=1e-5, verbose=True, ftol=1e-6, max_update_norm= None):
         """Computes geometric median of atoms with weights alphas using Weiszfeld's Algorithm
                """
         points = []
@@ -622,7 +524,6 @@ class Helper:
                 Variable(torch.zeros(1))
             )
 
-
 class FoolsGold(object):
     def __init__(self, use_memory=False):
         self.memory = None
@@ -676,16 +577,86 @@ class FoolsGold(object):
         :return: compute similatiry and return weightings
         """
         n_clients = grads.shape[0]
-        cs = smp.cosine_similarity(grads) - np.eye(n_clients)
+        
+
+        # ------------------------------------------------------------
+        # 4 ALGORITHMS - 
+        #    Cosine Similarity   - original
+        #    Euclidean Distance
+        #    Manhattan Distance
+        #    TS-SS Triangle Area Similarity - Sector Area Similarity
+
+
+        # Distance calculations, Normalized to [-1, 1], from:
+        # (https://www.codegrepper.com/code-examples/python/how+to+scale+an+array+between+two+values+python)
+
+
+        #    1.  Cosine Similarity (normalized by default) - original
+        # cs = smp.cosine_similarity(grads) - np.eye(n_clients)
+        
+        #    2.  Euclidean Normalized
+#        distance_calc = smp.euclidean_distances(grads)
+        
+        #    3.  Manhattan Normalized
+        # distance_calc = smp.manhattan_distances(grads)
+
+        #    4.   Triangle Area Similarity - Sector Area Similarity
+        v = torch.tensor(grads)
+        cs = ts_ss_(v).numpy()
+
+#        distance_calc = ts_ss_(v).numpy()
+#        normalized = 2.*(distance_calc - np.min(distance_calc))/np.ptp(distance_calc)-1
+#        cs = normalized - np.eye(n_clients)
+
+        # ------------------------------------------------------------
+
+
+#        print('TEST TS SS')
+#        v = torch.tensor(grads)
+#        cs = ts_ss_(v).numpy()
+
+
+#        print('TEST TS SS 1')
+#        v = torch.tensor(grads)
+#        print('TEST TS SS 2')
+#        cs = ts_ss_(v)
+#        print('TEST TS SS 3')
+#        print(cs)
+#        print('TEST TS SS 4')
+#        print(ts_ss_(v))
+#        print('TEST TS SS 5')
+
+
+#        cs_list = list()
+#        for i, x in enumerate(grads):
+#            for j, y in enumerate(grads):
+#                v = torch.tensor([x, y])
+#                res = ts_ss_(v)
+#                cs_list.append(res)
+                
+                
+        # vec1 = [1.0,2.0]
+        # vec2 = [2.0,4.0]
+        # v = torch.tensor([vec1, vec2])
+        # print(ts_ss_(v))
+
+        #for g1, g2 in enumerate(grads):
+        #    print(ts_ss_(g2))
+
+        # ------------------------------------------------------------
+        
+        # failed efforts:
+        #ed_normVector = np.linalg.norm(edtest)
+        #ed_normalized = edtest/ed_normVector
+        #ed_transformed = np.linalg.norm(ed_normalized)  # = 1.0
+        #norm1 = F.normalize(edtest)
+        #norm2 = F.normalize(edtest, dim=2)
+        #norm3 = F.normalize(edtest, dim=-1)
+        #ed_normL = np.linalg.norm(edtest, axis=0) - 
+        #ed_normalizedL = edtest/ednormL - fails
+
+
         maxcs = np.max(cs, axis=1)
-
-        vec1 = [1,2]
-        vec2 = [2,4]
-
-        print(Euclidean(vec1,vec2))
-        print(Cosine(vec1,vec2))
-        print(TS_SS(vec1,vec2))
-
         # pardoning
         for i in range(n_clients):
             for j in range(n_clients):
@@ -698,7 +669,7 @@ class FoolsGold(object):
         wv[wv > 1] = 1
         wv[wv < 0] = 0
 
-        alpha = np.max(cs, axis=1) #probably the learning rate?
+        alpha = np.max(cs, axis=1)
 
         # Rescale so that max value is wv
         wv = wv / np.max(wv)
@@ -713,130 +684,80 @@ class FoolsGold(object):
         return wv,alpha
 
 
+# copied from github
 
-#BEN'S ADDITION
-#attempting to follow pseudo code format from Wiley paper
-#-------------------------------------------------------------------#
-#
-#
-# TS SS CODE
-
-def Cosine(vec1, vec2) :
-    result = InnerProduct(vec1,vec2) / (VectorSize(vec1) * VectorSize(vec2))
-    return result
-
-def VectorSize(vec) :
-    return math.sqrt(sum(math.pow(v,2) for v in vec))
-
-def InnerProduct(vec1, vec2) :
-    return sum(v1*v2 for v1,v2 in zip(vec1,vec2))
-
-def Euclidean(vec1, vec2) :
-    return math.sqrt(sum(math.pow((v1-v2),2) for v1,v2 in zip(vec1, vec2)))
-
-def Theta(vec1, vec2) :
-    return math.acos(Cosine(vec1,vec2)) + math.radians(10)
-
-def Triangle(vec1, vec2) :
-    theta = math.radians(Theta(vec1,vec2))
-    return (VectorSize(vec1) * VectorSize(vec2) * math.sin(theta)) / 2
-
-def Magnitude_Difference(vec1, vec2) :
-    return abs(VectorSize(vec1) - VectorSize(vec2))
-
-def Sector(vec1, vec2) :
-    ED = Euclidean(vec1, vec2)
-    MD = Magnitude_Difference(vec1, vec2)
-    theta = Theta(vec1, vec2)
-    return math.pi * math.pow((ED+MD),2) * theta/360
-
-def TS_SS(vec1, vec2) :
-    return Triangle(vec1, vec2) * Sector(vec1, vec2)
+def cos_sim(v):
+    v_inner = inner_product(v)
+    v_size = vec_size(v)
+    v_cos = v_inner / torch.mm(v_size, v_size.t())
+    return v_cos
 
 
-
-class GAN(object):
-    def __init__(self, use_memory=False):
-        self.memory = None
-        self.memory_dict=dict()
-        self.wv_history = []
-        self.use_memory = use_memory
-    
-    
-    def aggregate_gradients(self, client_grads,names):
-
-        curr_time = time.time()
-        num_clients = len(client_grads)
-        grad_len = np.array(client_grads[0][-2].cpu().data.numpy().shape).prod()
-        self.memory = np.zeros((num_clients, grad_len))
-
-        wv, alpha = self.gan()
-
-    def aggregate_gradients(self, client_grads,names):
-        cur_time = time.time()
-        num_clients = len(client_grads)
-        grad_len = np.array(client_grads[0][-2].cpu().data.numpy().shape).prod()
-
-        # if self.memory is None:
-        #     self.memory = np.zeros((num_clients, grad_len))
-
-        #grads is reshaping client_grads
-        self.memory = np.zeros((num_clients, grad_len))
-        grads = np.zeros((num_clients, grad_len))
-        for i in range(len(client_grads)):
-            grads[i] = np.reshape(client_grads[i][-2].cpu().data.numpy(), (grad_len))
-            if names[i] in self.memory_dict.keys():
-                self.memory_dict[names[i]]+=grads[i]
-            else:
-                self.memory_dict[names[i]]=copy.deepcopy(grads[i])
-            self.memory[i]=self.memory_dict[names[i]]
-        # self.memory += grads
+def vec_size(v):
+    return v.norm(dim=-1, keepdim=True)
 
 
-        wv, alpha = self.gan(grads)  # Use FG
-
-        logger.info(f'[GAN agg] wv: {wv}')
-        self.wv_history.append(wv)
-
-        #create aggregate gradient for each layer
-        agg_grads = []
-        # Iterate through each layer
-        for i in range(len(client_grads[0])):
-            assert len(wv) == len(client_grads), 'len of wv {} is not consistent with len of client_grads {}'.format(len(wv), len(client_grads))
-            temp = wv[0] * client_grads[0][i].cpu().clone()
-            # Aggregate gradients for a layer
-            for c, client_grad in enumerate(client_grads):
-                if c == 0:
-                    continue
-                temp += wv[c] * client_grad[i].cpu()
-            temp = temp / len(client_grads)
-            agg_grads.append(temp)
-        print('model aggregation took {}s'.format(time.time() - cur_time))
-
-        return agg_grads, wv, alpha
-
-    def gan(self, grads):
-
-        #step1: update D (Discrimintor) with grads (might be part of gan_helper.train_gan below)
-        #step2: Train G, then D, with Xaux 
-        #-----------------------------------------------
-
-        audit_data = gan_helper.train_gan(main.epoch, grads)
+def inner_product(v):
+    return torch.mm(v, v.t())
 
 
-        #step3: Generate final dataset Xaud (auditing dataset)
-        #-----------------------------------------------
-        #step4: if < required G/D training iterations,
-        #       update global model,
-        #       return weights and learning rate (???)
-        #       else (enough G/D training iterations)
-        #       see pseudo code in paper for details
-        #-----------------------------------------------
-        cv = 0
-        s = 0
-        
+def euclidean_dist(v, eps=1e-10):
+    v_norm = (v**2).sum(-1, keepdim=True)
+    dist = v_norm + v_norm.t() - 2.0 * torch.mm(v, v.t())
+    dist = torch.sqrt(torch.abs(dist) + eps)
+    return dist
 
 
-        return None #return weights and learning rate
-#-------------------------------------------------------------------#
+def theta(v, eps=1e-5):
+    v_cos = cos_sim(v).clamp(-1. + eps, 1. - eps)
+    x = torch.acos(v_cos) + math.radians(10)
+    return x
 
+
+def triangle(v):
+    theta_ = theta(v)
+    theta_rad = theta_ * math.pi / 180.
+    vs = vec_size(v)
+    x = (vs.mm(vs.t())) * torch.sin(theta_rad)
+    return x / 2.
+
+
+def magnitude_dif(v):
+    vs = vec_size(v)
+    return (vs - vs.t()).abs()
+
+
+def sector(v):
+    ed = euclidean_dist(v)
+    md = magnitude_dif(v)
+    sec = math.pi * torch.pow((ed + md), 2) * theta(v)/360.
+    return sec
+
+
+def ts_ss(v):
+    tri = triangle(v)
+    sec = sector(v)
+    return tri * sec
+
+
+def ts_ss_(v, eps=1e-15, eps2=1e-4):
+    # reusable compute
+    v_inner = torch.mm(v, v.t())
+    vs = v.norm(dim=-1, keepdim=True)
+    vs_dot = vs.mm(vs.t())
+
+    # compute triangle(v)
+    v_cos = v_inner / vs_dot
+    v_cos = v_cos.clamp(-1. + eps2, 1. - eps2)  # clamp to avoid backprop instability
+    theta_ = torch.acos(v_cos) + math.radians(10)
+    theta_rad = theta_ * math.pi / 180.
+    tri = (vs_dot * torch.sin(theta_rad)) / 2.
+
+    # compute sector(v)
+    v_norm = (v ** 2).sum(-1, keepdim=True)
+    euc_dist = v_norm + v_norm.t() - 2.0 * v_inner
+    euc_dist = torch.sqrt(torch.abs(euc_dist) + eps)  # add epsilon to avoid srt(0.)
+    magnitude_diff = (vs - vs.t()).abs()
+    sec = math.pi * (euc_dist + magnitude_diff) ** 2 * theta_ / 360.
+
+    return tri * sec

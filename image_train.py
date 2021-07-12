@@ -21,7 +21,7 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
     for model_id in range(helper.params['no_models']):
         epochs_local_update_list = []
         last_local_model = dict()
-        client_grad = [] # fg  only works for aggr_epoch_interval=1
+        client_grad = [] # only works for aggr_epoch_interval=1
 
         for name, data in target_model.state_dict().items():
             last_local_model[name] = target_model.state_dict()[name].clone()
@@ -90,19 +90,14 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
                                (1 - helper.params['alpha_loss']) * distance_loss
                         loss.backward()
 
-                        # BEN'S NOTES
-                        # GAN functionality here?
-                        #--------------------------------#
-
                         # get gradients
-                        if helper.params['aggregation_methods']==config.AGGR_FOOLSGOLD or helper.params['aggregation_methods']==config.AGGR_GAN:
+                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
                             for i, (name, params) in enumerate(model.named_parameters()):
                                 if params.requires_grad:
                                     if internal_epoch == 1 and batch_id == 0:
                                         client_grad.append(params.grad.clone())
                                     else:
                                         client_grad[i] += params.grad.clone()
-                        
 
                         poison_optimizer.step()
                         total_loss += loss.data
@@ -213,12 +208,8 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
                         loss = nn.functional.cross_entropy(output, targets)
                         loss.backward()
 
-                        # BEN'S NOTES
-                        # GAN functionality here?
-                        #--------------------------------#
-
                         # get gradients
-                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or helper.params['aggregation_methods'] == config.AGGR_GAN:
+                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
                             for i, (name, params) in enumerate(model.named_parameters()):
                                 if params.requires_grad:
                                     if internal_epoch == 1 and batch_id == 0:
@@ -314,11 +305,7 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
                 local_model_update_dict[name] = (data - last_local_model[name])
                 last_local_model[name] = copy.deepcopy(data)
 
-            # BEN'S NOTES
-            # GAN functionality here?
-            #--------------------------------#
-            
-            if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
+            if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
                 epochs_local_update_list.append(client_grad)
             else:
                 epochs_local_update_list.append(local_model_update_dict)

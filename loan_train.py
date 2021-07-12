@@ -116,11 +116,6 @@ def LoanTrain(helper, start_epoch, local_model, target_model, is_poison,state_ke
                         loss = helper.params['alpha_loss'] * class_loss + \
                                (1 - helper.params['alpha_loss']) * distance_loss
                         loss.backward()
-
-                        # BEN'S NOTES
-                        # GAN functionality here?
-                        #--------------------------------#
-
                         # get gradients
                         if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
                             for i, (name, params) in enumerate(model.named_parameters()):
@@ -189,10 +184,6 @@ def LoanTrain(helper, start_epoch, local_model, target_model, is_poison,state_ke
                         loss = nn.functional.cross_entropy(output, targets)
                         loss.backward()
 
-                        # BEN'S NOTES
-                        # GAN functionality here?
-                        #--------------------------------#
-
                         # get gradients
                         if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
                             for i, (name, params) in enumerate(model.named_parameters()):
@@ -260,10 +251,6 @@ def LoanTrain(helper, start_epoch, local_model, target_model, is_poison,state_ke
                 local_model_update_dict[name] = (data - last_params_variables[name])
                 last_params_variables[name] = copy.deepcopy(data)
 
-            # BEN'S NOTES
-            # GAN functionality here?
-            #--------------------------------#
-            
             if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
                 epochs_local_update_list.append(client_grad)
             else:

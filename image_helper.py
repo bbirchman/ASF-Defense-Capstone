@@ -189,7 +189,7 @@ class ImageHelper(Helper):
             self.test_dataset = datasets.CIFAR10(dataPath, train=False, transform=transform_test)
 
         elif self.params['type'] == config.TYPE_MNIST:
-            
+
             self.train_dataset = datasets.MNIST('./data', train=True, download=True,
                                transform=transforms.Compose([
                                    transforms.ToTensor(),
@@ -228,8 +228,6 @@ class ImageHelper(Helper):
                 alpha=self.params['dirichlet_alpha'])
             train_loaders = [(pos, self.get_train(indices)) for pos, indices in
                              indices_per_participant.items()]
-
-            
         else:
             ## sample indices for participants that are equally
             all_range = list(range(len(self.train_dataset)))
@@ -286,12 +284,6 @@ class ImageHelper(Helper):
                                                   batch_size=self.params['test_batch_size'],
                                                   shuffle=True)
         return test_loader
-
-    def get_aux(self):
-        aux_loader = torch.utils.data.DataLoader(self.aux_dataset,
-                                                  batch_size=self.params['aux_batch_size'],
-                                                  shuffle=True)
-        return aux_loader
 
 
     def get_batch(self, train_data, bptt, evaluation=False):
