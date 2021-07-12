@@ -586,27 +586,27 @@ class FoolsGold(object):
         #    Manhattan Distance
         #    TS-SS Triangle Area Similarity - Sector Area Similarity
 
-
-        # Distance calculations, Normalized to [-1, 1], from:
-        # (https://www.codegrepper.com/code-examples/python/how+to+scale+an+array+between+two+values+python)
+        #    Note: Distance calculations, Normalized to [-1, 1], from:
+        #          (https://www.codegrepper.com/code-examples/python/how+to+scale+an+array+between+two+values+python)
 
 
         #    1.  Cosine Similarity (normalized by default) - original
         # cs = smp.cosine_similarity(grads) - np.eye(n_clients)
         
         #    2.  Euclidean Normalized
-#        distance_calc = smp.euclidean_distances(grads)
+        # distance_calc = smp.euclidean_distances(grads)
+        # normalized = 2.*(distance_calc - np.min(distance_calc))/np.ptp(distance_calc)-1
+        # cs = normalized - np.eye(n_clients)
         
         #    3.  Manhattan Normalized
         # distance_calc = smp.manhattan_distances(grads)
+        # normalized = 2.*(distance_calc - np.min(distance_calc))/np.ptp(distance_calc)-1
+        # cs = normalized - np.eye(n_clients)
 
-        #    4.   Triangle Area Similarity - Sector Area Similarity
+        #    4.  TS-SS Triangle Area Similarity - Sector Area Similarity
         v = torch.tensor(grads)
         cs = ts_ss_(v).numpy()
 
-#        distance_calc = ts_ss_(v).numpy()
-#        normalized = 2.*(distance_calc - np.min(distance_calc))/np.ptp(distance_calc)-1
-#        cs = normalized - np.eye(n_clients)
 
         # ------------------------------------------------------------
 
@@ -684,7 +684,7 @@ class FoolsGold(object):
         return wv,alpha
 
 
-# copied from github
+# TS-SS code, (referenced from github)
 
 def cos_sim(v):
     v_inner = inner_product(v)
