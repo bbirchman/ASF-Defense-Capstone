@@ -90,8 +90,15 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
                                (1 - helper.params['alpha_loss']) * distance_loss
                         loss.backward()
 
+                        # GAN Pseudo ----------------------------------------------------------- #
+                        # Consider AGGR_GAN and how you want to load gradients into client_grad.
+                        # May be the same/similar to foolsgold. This is my assumption.
+                        # ---------------------------------------------------------------------- #
+
                         # get gradients
-                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
+                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or \
+                            helper.params['aggregation_methods'] == config.AGGR_ALT_FOOLSGOLD or \
+                            helper.params['aggregation_methods'] == config.AGGR_GAN:
                             for i, (name, params) in enumerate(model.named_parameters()):
                                 if params.requires_grad:
                                     if internal_epoch == 1 and batch_id == 0:
@@ -208,8 +215,15 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
                         loss = nn.functional.cross_entropy(output, targets)
                         loss.backward()
 
+                        # GAN Pseudo ----------------------------------------------------------- #
+                        # Consider AGGR_GAN and how you want to load gradients into client_grad.
+                        # May be the same/similar to foolsgold. This is my assumption.
+                        # ---------------------------------------------------------------------- #
+
                         # get gradients
-                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
+                        if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or \
+                            helper.params['aggregation_methods'] == config.AGGR_ALT_FOOLSGOLD or \
+                            helper.params['aggregation_methods'] == config.AGGR_GAN:
                             for i, (name, params) in enumerate(model.named_parameters()):
                                 if params.requires_grad:
                                     if internal_epoch == 1 and batch_id == 0:
@@ -305,7 +319,14 @@ def ImageTrain(helper, start_epoch, local_model, target_model, is_poison,agent_n
                 local_model_update_dict[name] = (data - last_local_model[name])
                 last_local_model[name] = copy.deepcopy(data)
 
-            if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
+            # GAN Pseudo ----------------------------------------------------------- #
+            # Consider AGGR_GAN and how you want to update client_grad.
+            # May be the same/similar to foolsgold. This is my assumption.
+            # ---------------------------------------------------------------------- #
+
+            if helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or \
+                helper.params['aggregation_methods'] == config.AGGR_ALT_FOOLSGOLD or \
+                helper.params['aggregation_methods'] == config.AGGR_GAN:
                 epochs_local_update_list.append(client_grad)
             else:
                 epochs_local_update_list.append(local_model_update_dict)

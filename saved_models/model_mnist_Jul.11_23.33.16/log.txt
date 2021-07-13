@@ -1,6 +1,0 @@
-current path: saved_models/model_mnist_Jul.11_23.33.16
-Loading data
-build_classes_dict done
-train loaders done
-get poison test loader
-load data done

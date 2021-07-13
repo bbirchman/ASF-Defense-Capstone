@@ -15,8 +15,14 @@ internal_poison_epochs: 10 #  multishot: 5 ; singleshot: 10
 poisoning_per_batch: 10
 baseline: false
 eta: 0.1
+
 # aggregation_methods Allowed values are: [ 'mean', 'geom_median','foolsgold']
+# GAN Pseudo ----------------------------------------------------------- #
+# 'gan' should be specified here.
+# ---------------------------------------------------------------------- #
+# Ben's Alt Foolsgold: 'alt_foolsgold'
 aggregation_methods: 'mean'
+
 scale_weights_poison: 30
 adversary_list: [CT,MO,TN]
 #adversary_list: [MO]

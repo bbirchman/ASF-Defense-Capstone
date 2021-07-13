@@ -25,6 +25,8 @@ import random
 import config
 import copy
 
+
+
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -185,11 +187,22 @@ if __name__ == '__main__':
             vis_agg_weight(helper, names, weights, epoch, vis, adversarial_name_keys)
             vis_fg_alpha(helper, names, alphas, epoch, vis, adversarial_name_keys)
 
-        elif helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
+        elif helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD or \
+            helper.params['aggregation_methods'] == config.AGGR_ALT_FOOLSGOLD:
             is_updated, names, weights, alphas = helper.foolsgold_update(helper.target_model, updates)
             vis_agg_weight(helper,names,weights,epoch,vis,adversarial_name_keys)
             vis_fg_alpha(helper,names,alphas,epoch,vis,adversarial_name_keys )
             num_oracle_calls = 1
+            
+        elif helper.params['aggregation_methods'] == config.AGGR_GAN:
+            is_updated, names, weights, alphas = helper.gan_update(helper.target_model, updates)
+            vis_agg_weight(helper,names,weights,epoch,vis,adversarial_name_keys)
+            vis_fg_alpha(helper,names,alphas,epoch,vis,adversarial_name_keys )
+
+            # GAN Pseudo ----------------------------------------------------------- #
+            # Consider AGGR_GAN and how you need to set num_oracle_calls.
+            # ---------------------------------------------------------------------- #
+            num_oracle_calls = None # Needs to be set to some integer
 
         # clear the weight_accumulator
         weight_accumulator = helper.init_weight_accumulator(helper.target_model)
