@@ -25,8 +25,6 @@ import random
 import config
 import copy
 
-
-
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -180,7 +178,6 @@ if __name__ == '__main__':
                                                       target_model=helper.target_model,
                                                       epoch_interval=helper.params['aggr_epoch_interval'])
             num_oracle_calls = 1
-
         elif helper.params['aggregation_methods'] == config.AGGR_GEO_MED:
             maxiter = helper.params['geom_median_maxiter']
             num_oracle_calls, is_updated, names, weights, alphas = helper.geometric_median_update(helper.target_model, updates, maxiter=maxiter)

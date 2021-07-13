@@ -94,8 +94,12 @@ class Alt_FoolsGold(object):
 
         # ------------------------------------------------------------
 
-
+# Testing/Debugging code
 #        print('TEST TS SS')
+#        print('TEST TS SS')
+#        print('TEST TS SS')
+#        print('TEST TS SS')
+
 #        v = torch.tensor(grads)
 #        cs = ts_ss_(v).numpy()
 
@@ -140,7 +144,7 @@ class Alt_FoolsGold(object):
         #ed_normalizedL = edtest/ednormL - fails
 
         maxcs = np.max(cs, axis=1)
-
+        
         # pardoning
         for i in range(n_clients):
             for j in range(n_clients):

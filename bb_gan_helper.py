@@ -3,41 +3,41 @@
 import argparse
 import os
 import numpy as np
-import math
-import main
 import time
 import logging
 import copy
-logger = logging.getLogger("logger")
-
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
-
-from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.autograd import Variable
-
 import torch.nn as nn
-import torch.nn.functional as F
 import torch
+logger = logging.getLogger("logger")
+
+#import math
+#import main
+#from torch.utils.data import DataLoader
+#import torch.nn.functional as F
 
 os.makedirs("images", exist_ok=True)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
-parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
-parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
-parser.add_argument("--img_size", type=int, default=28, help="size of each image dimension")
-parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=400, help="interval betwen image samples")
-opt = parser.parse_args()
-print(opt)
 
-img_shape = (opt.channels, opt.img_size, opt.img_size)
+#Pseudo GAN
+#These needs to be set to params yaml files from attack. this is just to get code to compile temporarily
+n_epochs = 200
+batch_size = 64
+lr = 0.0002
+b1 = 0.5
+b2 = 0.999
+n_cpu = 8
+latent_dim = 100
+img_size = 28
+channels = 1
+sample_interval = 400
+
+
+
+img_shape = (channels, img_size, img_size)
 cuda = True if torch.cuda.is_available() else False
 
 def train_gan(self, epoch, grads):
@@ -45,8 +45,16 @@ def train_gan(self, epoch, grads):
     # Loss function
     adversarial_loss = torch.nn.BCELoss()
 
-    # Initialize generator and discriminator with agg_grad (probably)
-    # I need to initialize D with global model M but I dont know how. Is it the gradients? 
+    # GAN Pseudo ----------------------------------------------------------- #
+    # According to the Wiley GAN research paper, you must initialize D with M.
+    #
+    #"M includes the information of user data"
+    #"we can use M to initialize D at the beginning of each training iteration to reconstruct participants’ training data. #
+    # 
+    # Consider reaching out to the authors if you wish to pursue this further.
+    # ---------------------------------------------------------------------- #
+    # INITIALIZE D WITH M HERE
+    
     generator = Generator()
     discriminator = Discriminator()
 
@@ -75,10 +83,10 @@ def train_gan(self, epoch, grads):
             train=True,
             download=True,
             transform=transforms.Compose(
-                [transforms.Resize(opt.img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+                [transforms.Resize(img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
             ),
         ),
-        batch_size=opt.batch_size,
+        batch_size=batch_size,
         shuffle=True,
     )
 
@@ -86,8 +94,9 @@ def train_gan(self, epoch, grads):
     # Optimizers note: betas appear here from GAN github, but not in our attack code SGD instantiation. 
     # May need to look into this
     # ---------------------------------------------------------------------- #
-    optimizer_G = torch.optim.SGD(generator.parameters(), lr=opt.lr)
-    optimizer_D = torch.optim.SGD(discriminator.parameters(), lr=opt.lr)
+
+    optimizer_G = torch.optim.SGD(generator.parameters(), lr)
+    optimizer_D = torch.optim.SGD(discriminator.parameters(), lr)
 
     Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
     audit_data = []
@@ -104,16 +113,6 @@ def train_gan(self, epoch, grads):
 
         # Configure input
         real_imgs = Variable(imgs.type(Tensor))
-        
-        # GAN Pseudo ----------------------------------------------------------- #
-        # According to the Wiley GAN research paper, you must initialize D with M.
-        #
-        #"M includes the information of user data"
-        #"we can use M to initialize D at the beginning of each training iteration to reconstruct participants’ training data. #
-        # 
-        # Consider reaching out to the authors if you wish to pursue this further.
-        # ---------------------------------------------------------------------- #
-        # INITIALIZE D WITH M HERE
 
 
         # -----------------
@@ -123,7 +122,7 @@ def train_gan(self, epoch, grads):
         optimizer_G.zero_grad()
 
         # Sample noise as generator input
-        z = Variable(Tensor(np.random.normal(0, 1, (imgs.shape[0], opt.latent_dim))))
+        z = Variable(Tensor(np.random.normal(0, 1, (imgs.shape[0], latent_dim))))
 
         # Generate a batch of images
         gen_imgs = generator(z)
@@ -150,7 +149,7 @@ def train_gan(self, epoch, grads):
 
         print(
             "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
+             % (epoch, n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
 
         # GAN Pseudo ----------------------------------------------------------- #
@@ -158,8 +157,9 @@ def train_gan(self, epoch, grads):
         # the GAN model here must produce audit_data that can be compared with
         # the DBA attack data for the next segment of this GAN defense.
         # ---------------------------------------------------------------------- #
+
         batches_done = epoch * len(dataloader) + i
-        if batches_done % opt.sample_interval == 0:
+        if batches_done % sample_interval == 0:
             save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
             audit_data = gen_imgs        
             
@@ -183,7 +183,8 @@ class GAN(object):
         # You must reshape client_grads to work with the GAN defense algorithm
         # Any commented out code below is for FoolsGold but may be useful as reference.
         # ---------------------------------------------------------------------- #
-        #grads is reshaping client_grads. 
+        #grads is reshaping client_grads.
+
         self.memory = np.zeros((num_clients, grad_len))
         grads = np.zeros((num_clients, grad_len))
         for i in range(len(client_grads)):
@@ -245,7 +246,9 @@ class GAN(object):
         # step1: update D (Discrimintor) with grads (might be part of gan_helper.train_gan below)
         # step2: Train G, then D, with Xaux and produce an auditing dataset
         #        (These steps are accomplished through train_gan)
-        audit_data = train_gan(main.epoch, grads)
+
+        #audit_data = train_gan(main.epoch, grads)
+
         #
         #    (note for step 3, no else statement needed, 
         #    #since the model updates are done outside of this function)
@@ -289,7 +292,7 @@ class Generator(nn.Module):
             return layers
 
         self.model = nn.Sequential(
-            *block(opt.latent_dim, 128, normalize=False),
+            *block(latent_dim, 128, normalize=False),
             *block(128, 256),
             *block(256, 512),
             *block(512, 1024),

@@ -6,9 +6,10 @@ AGGR_GEO_MED = 'geom_median'
 AGGR_FOOLSGOLD='foolsgold'
 AGGR_ALT_FOOLSGOLD= 'alt_foolsgold' # Euclidean, Manhattan, or TS-SS
 
-#GAN pseudo
+#GAN Pseudo
 AGGR_GAN= 'gan' #pseudo code / structure only
  
+
 MAX_UPDATE_NORM = 1000  # reject all updates larger than this amount
 patience_iter=20
 

@@ -18,8 +18,8 @@ import config
 import copy
 import utils.csv_record
 
-import bb_gan_helper as gan
-from bb_foolsgold import Alt_FoolsGold as altfg
+from bb_gan_helper import GAN
+from bb_foolsgold import Alt_FoolsGold as AltFg
 
 class Helper:
     def __init__(self, current_time, params, name):
@@ -51,9 +51,8 @@ class Helper:
         self.params['folder_path'] = self.folder_path
 
         self.fg= FoolsGold(use_memory=self.params['fg_use_memory'])
-        self.afg = FoolsGold(use_memory=self.params['fg_use_memory'])
-
-        self.gn= gan.GAN(use_memory=self.params['gn_use_memory'])
+        self.afg = AltFg(use_memory=self.params['fg_use_memory'])
+        self.gn= GAN(use_memory=self.params['gn_use_memory'])
         
 
     def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
@@ -300,11 +299,10 @@ class Helper:
         # update the global model
         optimizer.zero_grad()
 
-        agg_grads, wv, alpha = None
         if self.params['aggregation_methods'] == config.AGGR_ALT_FOOLSGOLD:
-            agg_grads, wv,alpha = self.fg.aggregate_gradients(client_grads,names)
+            agg_grads, wv,alpha = self.afg.aggregate_gradients(client_grads,names)
         else: # Alt_FoolsGold
-            agg_grads, wv,alpha = altfg.aggregate_gradients(client_grads,names)
+            agg_grads, wv,alpha = self.fg.aggregate_gradients(client_grads,names)
 
         for i, (name, params) in enumerate(target_model.named_parameters()):
             agg_grads[i]=agg_grads[i] * self.params["eta"]
@@ -315,7 +313,7 @@ class Helper:
         utils.csv_record.add_weight_result(names, wv, alpha)
         return True, names, wv, alpha
 
-    def geometric_median_update(self, target_model, updates, maxiter=4, eps=1e-5, verbose=True, ftol=1e-6, max_update_norm= None):
+    def geometric_median_update(self, target_model, updates, maxiter=4, eps=1e-5, verbose=False, ftol=1e-6, max_update_norm= None):
         """Computes geometric median of atoms with weights alphas using Weiszfeld's Algorithm
                """
         points = []
@@ -395,7 +393,7 @@ class Helper:
 
         return num_oracle_calls, is_updated, names, wv.cpu().numpy().tolist(),alphas
     
-    #GAN pseudo
+    #GAN Pseudo
     # integrates gan update into existing attack code.
     def gan_update(self,target_model,updates):
         client_grads = []
@@ -425,7 +423,7 @@ class Helper:
 
         # GAN Pseudo
         # GAN logic in bb_GAN_Helper.py, referenced here
-        agg_grads,wv,alpha = gan.GAN.aggregate_gradients(client_grads,names)
+        agg_grads,wv,alpha = self.gn.aggregate_gradients(client_grads,names)
         
         #GAN Pseudo
         #Apply multishot or singleshot to gradient update using 'eta' parameter
