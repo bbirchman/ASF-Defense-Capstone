@@ -89,7 +89,15 @@ class Alt_FoolsGold(object):
 
         #    4.  TS-SS Triangle Area Similarity - Sector Area Similarity
         v = torch.tensor(grads)
-        cs = ts.ts_ss_(v).numpy()
+       
+        # If TS-SS is normalized already, run this:  To run unnormalized version of TS-SS
+        cs = ts.ts_ss_(v).numpy() - np.eye(n_clients)
+
+        # TS-SS normalized, To run normalized version of TS-SS
+        # distance_calc =  ts.ts_ss_(v).numpy()
+        # normalized = 2.*(distance_calc - np.min(distance_calc))/np.ptp(distance_calc)-1
+        # cs = normalized - np.eye(n_clients)
+        
 
 
         # ------------------------------------------------------------
@@ -144,7 +152,7 @@ class Alt_FoolsGold(object):
         #ed_normalizedL = edtest/ednormL - fails
 
         maxcs = np.max(cs, axis=1)
-        
+
         # pardoning
         for i in range(n_clients):
             for j in range(n_clients):
