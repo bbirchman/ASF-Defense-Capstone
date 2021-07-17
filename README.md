@@ -33,7 +33,7 @@ The DBA team supplies a pretrained clean model for attacks at [Google Drive](htt
 
 In the bottom left corner, it should verify your Python version. If you have something other than "Python 3.8.8 64-bit ('base':conda)", click it and change it to that. 
 In VSCode, under Run, open run configurations. It should lead you to launch.json. Here is my configuration for running and debugging this code:
-
+```
 {
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
@@ -49,7 +49,7 @@ In VSCode, under Run, open run configurations. It should lead you to launch.json
         }
     ]
 }
-
+```
 If you plan to run on a seperate database, change the yaml file in "args" accordingly. You can also run this from the VSCode terminal like so:
 python main.py --params utils/mnist_params.yaml
 
