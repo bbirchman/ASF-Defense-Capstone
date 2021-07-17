@@ -9,12 +9,14 @@ Some of this information is repeated from the original repository setup guide.
 I recommend using Anaconda3, which packages python 3.8.8. The reason is pip and pip3 have trouble installing some packages required to run this project, so you can always fall back on one or the other.
 
 Once installed, open your environment variable, verify your Anaconda3 directory and add it to your PATH (your directory may be located in Users, not AppData):
+```
 C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\
 C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\Scripts\
 C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\Scripts\ 
 C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\Library\ 
 C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\Library\bin\ 
 C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\Library\mingw-w64\bin\
+```
 
 Create a new environment variable called PYTHONPATH and add the above addresses to it.
 
@@ -22,7 +24,7 @@ Install VSCode, and install the python and pylance packages.
 
 Press control SHIFT P and open user settings. 
 In the settings, search for "python path" and scroll down the list until you reach "Python: Python Path"
-It should say "python" by default. Change this to your anaconda directory: C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\
+It should say ```"python" ```by default. Change this to your anaconda directory:``` C:\Users\<myusername>\AppData\Local\Continuum\Anaconda3\ ```
 Close out and restart VSCode. You may need to restart your PC to recognise the python PATH.
 
 Now, install my code package. See my paper to summarize the changes I made to the DBA code structure. 
@@ -51,24 +53,36 @@ In VSCode, under Run, open run configurations. It should lead you to launch.json
 }
 ```
 If you plan to run on a seperate database, change the yaml file in "args" accordingly. You can also run this from the VSCode terminal like so:
+```
 python main.py --params utils/mnist_params.yaml
-
+```
 Before running, we need to install the following packages:
 
 PyTorch
 Navigate to pytorch.org and select your configuration (stable, Windows, Conda, CUDA - this option depends on your GPU)
-And copy the command, it should look something like: conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
+And copy the command, it should look something like: 
+```
+conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
+```
 
 Visdom
 I recommend installing Visdom through conda forge:
+```
 conda install -c conda-forge visdom
+```
 
 To progress through your installation and missing packages, you must run the Visdom server used for displaying information during runtime.
 To do this, run:
+```
 python -m visdom.server -p 8098
+```
 And in your browser, navigate to http://localhost:8098
 
-Now, attempt to excecute main.py with :python main.py --params utils/mnist_params.yaml
+Now, attempt to excecute main.py with:
+```
+python main.py --params utils/mnist_params.yaml
+```
+
 I ran into several problems with existing packages. For example, I had to reinstall Numpy due to version conflicts. Note that if you configured anaconda correctly in the steps above, both pip and conda should operate on the same python installation, the one inside Anaconda3 directory. To do so, confirm it's uninstalled from both conda and pip. Then try: conda install numpy. If the problems persist, try pip install numpy. 
 
 Use this pattern (and Google) for any further package problems. I had to do this for:
